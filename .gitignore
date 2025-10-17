@@ -1,0 +1,10 @@
+# Zig
+zig-cache/
+.zig-cache/
+zig-out/
+
+# Env
+.env
+
+# MacOS
+.DS_Store
