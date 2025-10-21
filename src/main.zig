@@ -4,9 +4,6 @@ const std = @import("std");
 const process = std.process;
 const mem = std.mem;
 
-const PACKAGES_DIR = "./packages";
-const BIN_DIR = "./bin";
-
 const Command = enum {
     install,
     uninstall,
@@ -22,7 +19,6 @@ pub fn main() !void {
     }
 
     var command: Command = undefined;
-    var package: []const u8 = undefined;
 
     var args_iter = process.args();
     _ = args_iter.next();
@@ -39,25 +35,15 @@ pub fn main() !void {
         return;
     }
 
-    // TODO: options
-
     const package_arg = args_iter.next();
     if (package_arg == null) {
         std.debug.print("No package provided.\n", .{});
         return;
     }
-    package = package_arg.?;
-    const package_str = lib.getPackageInfo(package) catch |err| {
+    const package: lib.Package = lib.getPackageInfo(package_arg.?) catch |err| {
         std.debug.print("Error fetching package info: {any}\n", .{err});
         return;
     };
-    const package_zon = try std.zon.parse.fromSlice(
-        struct {
-            url: []const u8,
-        },
-        std.heap.page_allocator,
-        package_str,
-        null,
-        .{ .ignore_unknown_fields = true });
-    std.debug.print("zon: {s}\n", .{package_zon.url});
+    std.debug.print("url: {s}\n", .{package.url});
+    try lib.fetchPackage(package);
 }
