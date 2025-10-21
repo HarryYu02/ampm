@@ -8,3 +8,6 @@ zig-out/
 
 # MacOS
 .DS_Store
+
+# Output
+bin/

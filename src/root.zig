@@ -4,6 +4,7 @@ const REGISTRY = "registry";
 const BIN = "bin";
 
 pub const Package = struct {
+    name: []const u8,
     url: []const u8,
 };
 
@@ -36,10 +37,21 @@ pub fn fetchPackage(package: Package) !void {
     var client = std.http.Client {
         .allocator = allocator,
     };
+
+    const cwd = std.fs.cwd();
+    var bin = try cwd.openDir(BIN, .{});
+    defer bin.close();
+    const file = try bin.createFile(package.name, .{});
+    defer file.close();
+
+    var file_buf: [1024]u8 = undefined;
+    var writer = file.writer(&file_buf);
+    const file_interface = &writer.interface;
     const response = try client.fetch(.{
         .method = .GET,
         .location = .{ .url = package.url },
-        .response_writer = null,
+        .response_writer = file_interface,
     });
+    _ = try file_interface.flush();
     std.debug.print("Fetch package: {any}\n", .{response.status});
 }

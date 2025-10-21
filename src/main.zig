@@ -41,7 +41,7 @@ pub fn main() !void {
         return;
     }
     const package: lib.Package = lib.getPackageInfo(package_arg.?) catch |err| {
-        std.debug.print("Error fetching package info: {any}\n", .{err});
+        std.debug.print("Error getting package info: {any}\n", .{err});
         return;
     };
     std.debug.print("url: {s}\n", .{package.url});
