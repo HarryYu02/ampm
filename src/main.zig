@@ -39,17 +39,25 @@ pub fn main() !void {
         return;
     }
 
+    // TODO: options
+
     const package_arg = args_iter.next();
     if (package_arg == null) {
         std.debug.print("No package provided.\n", .{});
         return;
-    } else {
-        package = package_arg.?;
-        var package_info: [1024]u8 = undefined;
-        _ = lib.getPackageInfo(&package_info, package) catch |err| {
-            std.debug.print("Error: {any}\n", .{err});
-            return;
-        };
-        std.debug.print("buf: {s}\n", .{package_info});
     }
+    package = package_arg.?;
+    const package_str = lib.getPackageInfo(package) catch |err| {
+        std.debug.print("Error fetching package info: {any}\n", .{err});
+        return;
+    };
+    const package_zon = try std.zon.parse.fromSlice(
+        struct {
+            url: []const u8,
+        },
+        std.heap.page_allocator,
+        package_str,
+        null,
+        .{ .ignore_unknown_fields = true });
+    std.debug.print("zon: {s}\n", .{package_zon.url});
 }
