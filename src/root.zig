@@ -32,6 +32,34 @@ test "basic get package" {
     try std.testing.expectEqualStrings(pack.url, "https://github.com/cowsay-org/cowsay/archive/refs/tags/v3.8.4.tar.gz");
 }
 
+fn extractPackage(package: Package, bin_dir: std.fs.Dir, file_name: []const u8) !void {
+    var file = try bin_dir.openFile(file_name, .{});
+    defer file.close();
+
+    var file_read_buf: [1024]u8 = undefined;
+    var reader = file.reader(&file_read_buf);
+    const reader_interface = &reader.interface;
+
+    try bin_dir.makeDir(package.name);
+    var pack_dir = try bin_dir.openDir(package.name, .{});
+    defer pack_dir.close();
+
+    var decompress_buf: [std.compress.flate.max_window_len]u8 = undefined;
+    var dcp: std.compress.flate.Decompress = .init(
+        reader_interface,
+        .gzip,
+        &decompress_buf
+    );
+    const dcp_reader = &dcp.reader;
+
+    std.tar.pipeToFileSystem(pack_dir, dcp_reader, .{
+        .mode_mode = .ignore,
+    }) catch |err| {
+        std.debug.print("tar err: {any}\n", .{err});
+        return err;
+    };
+}
+
 pub fn fetchPackage(package: Package) !void {
     const allocator = std.heap.page_allocator;
     var client = std.http.Client {
@@ -41,8 +69,13 @@ pub fn fetchPackage(package: Package) !void {
     const cwd = std.fs.cwd();
     var bin = try cwd.openDir(BIN, .{});
     defer bin.close();
-    const file = try bin.createFile(package.name, .{});
-    defer file.close();
+
+    const file_name = "temp.tar.gz";
+    const file = try bin.createFile(file_name, .{});
+    defer {
+        file.close();
+        bin.deleteFile(file_name) catch unreachable;
+    }
 
     var file_buf: [1024]u8 = undefined;
     var writer = file.writer(&file_buf);
@@ -54,4 +87,6 @@ pub fn fetchPackage(package: Package) !void {
     });
     _ = try file_interface.flush();
     std.debug.print("Fetch package: {any}\n", .{response.status});
+
+    try extractPackage(package, bin, file_name);
 }
