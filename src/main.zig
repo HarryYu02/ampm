@@ -35,15 +35,25 @@ pub fn main() !void {
         return;
     }
 
-    const package_arg = args_iter.next();
-    if (package_arg == null) {
-        std.debug.print("No package provided.\n", .{});
-        return;
+    switch (command) {
+        .install => {
+            const package_arg = args_iter.next();
+            if (package_arg == null) {
+                std.debug.print("No package provided.\n", .{});
+                return;
+            }
+            lib.install(package_arg.?) catch |err| {
+                std.debug.print("Error installing package: {any}\n", .{err});
+                return;
+            };
+        },
+        .uninstall => {
+            const package_arg = args_iter.next();
+            if (package_arg == null) {
+                std.debug.print("No package provided.\n", .{});
+                return;
+            }
+            std.debug.print("Not implemented\n", .{});
+        },
     }
-    const package: lib.Package = lib.getPackageInfo(package_arg.?) catch |err| {
-        std.debug.print("Error getting package info: {any}\n", .{err});
-        return;
-    };
-    std.debug.print("url: {s}\n", .{package.url});
-    try lib.fetchPackage(package);
 }
