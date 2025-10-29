@@ -13,7 +13,60 @@ pub const Package = struct {
     url: []const u8,
 };
 
-fn installPackage() !void {}
+fn installPackage() !void {
+    std.debug.print("Installing package...\n", .{});
+}
+
+fn isNumber(char: u8) bool {
+    return char >= '0' and char <= '9';
+}
+
+fn extractSemVer(str: []const u8) ?[]const u8 {
+    var start: u8 = 0;
+    var end: u8 = 0;
+    if (str.len < 5) return null;
+    while (start < str.len - 4) : (start += 1) {
+        if (isNumber(str[start])) {
+            while (!isNumber(str[start])) {
+                start += 1;
+            }
+            end = start;
+            while (end < str.len and isNumber(str[end])) {
+                end += 1;
+            }
+            if (end < str.len and str[end] == '.') {
+                end += 1;
+                while (end < str.len and isNumber(str[end])) {
+                    end += 1;
+                }
+                if (end < str.len and str[end] == '.') {
+                    end += 1;
+                    while (end < str.len and isNumber(str[end])) {
+                        end += 1;
+                    }
+                    if (isNumber(str[end - 1])) {
+                        return str[start .. end];
+                    }
+                } else {
+                    start = end;
+                    continue;
+                }
+            } else {
+                start = end;
+                continue;
+            }
+        }
+    }
+    return null;
+}
+
+test "extract sem ver" {
+    try std.testing.expectEqualSlices(u8, "12.34.56", extractSemVer("test-12.34.56").?);
+    try std.testing.expectEqualSlices(u8, "1.2.3", extractSemVer("1.2.3").?);
+    try std.testing.expectEqualSlices(u8, "12.34.56", extractSemVer("test-12.34test-12.34.56").?);
+    try std.testing.expectEqual(null, extractSemVer("test-12.34"));
+    try std.testing.expectEqual(null, extractSemVer("test-12.34."));
+}
 
 fn extractPackage(package: Package, bin_dir: std.fs.Dir, file_name: []const u8) !void {
     std.debug.print("Extracting package...\n", .{});
@@ -29,6 +82,9 @@ fn extractPackage(package: Package, bin_dir: std.fs.Dir, file_name: []const u8) 
     defer pack_dir.close();
 
     if (std.mem.endsWith(u8, file_name, ".tar.gz")) {
+        const file_name_without_ext = file_name[0 .. file_name.len - 7];
+        const semver = extractSemVer(file_name_without_ext) orelse file_name_without_ext;
+        std.debug.print("Version: {s}\n", .{semver});
         var decompress_buf: [std.compress.flate.max_window_len]u8 = undefined;
         var decompressor: std.compress.flate.Decompress = .init(
             reader_interface,
@@ -48,24 +104,12 @@ fn extractPackage(package: Package, bin_dir: std.fs.Dir, file_name: []const u8) 
     }
 }
 
-fn fetchPackage(package: Package) !void {
+fn fetchPackage(package: Package, file: *std.fs.File) !void {
     std.debug.print("Fetching package from: {s}\n", .{package.url});
     const allocator = std.heap.page_allocator;
     var client = std.http.Client {
         .allocator = allocator,
     };
-
-    const cwd = std.fs.cwd();
-    var bin = try cwd.openDir(BIN, .{});
-    defer bin.close();
-
-    const last_slash_idx = std.mem.lastIndexOf(u8, package.url, "/");
-    const file_name = package.url[(last_slash_idx orelse 0) + 1 ..];
-    const file = try bin.createFile(file_name, .{});
-    defer {
-        file.close();
-        bin.deleteFile(file_name) catch unreachable;
-    }
 
     var file_buf: [1024]u8 = undefined;
     var writer = file.writer(&file_buf);
@@ -79,8 +123,6 @@ fn fetchPackage(package: Package) !void {
     if (response.status != std.http.Status.ok) {
         return error.FetchNotOk;
     }
-
-    try extractPackage(package, bin, file_name);
 }
 
 /// Install a package by name
@@ -92,7 +134,6 @@ pub fn install(package_name: []const u8) !void {
     const allocator = std.heap.page_allocator;
     const name = try std.mem.concat(allocator, u8, &[_][]const u8{package_name, ".zon"});
     const package_str = try registry.readFileAllocOptions(allocator, name, 2048, null, std.mem.Alignment.@"1", 0);
-
     const package_zon = try std.zon.parse.fromSlice(
         Package,
         allocator,
@@ -100,5 +141,21 @@ pub fn install(package_name: []const u8) !void {
         null,
         .{ .ignore_unknown_fields = true }
     );
-    try fetchPackage(package_zon);
+
+    var bin = try cwd.openDir(BIN, .{});
+    defer bin.close();
+
+    const last_slash_idx = std.mem.lastIndexOf(u8, package_zon.url, "/");
+    const file_name = package_zon.url[(last_slash_idx orelse 0) + 1 ..];
+    var file = try bin.createFile(file_name, .{});
+    defer {
+        file.close();
+        bin.deleteFile(file_name) catch unreachable;
+    }
+
+    try fetchPackage(package_zon, &file);
+    try extractPackage(package_zon, bin, file_name);
+    try installPackage();
+
+    std.debug.print("Package installed!\n", .{});
 }
