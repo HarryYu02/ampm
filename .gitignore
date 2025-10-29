@@ -11,6 +11,8 @@ zig-out/
 
 # Output
 bin/
+cache/
+source/
 
 # Development
 test.sh
