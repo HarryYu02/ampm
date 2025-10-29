@@ -1,27 +1,86 @@
 //! libampm
 const std = @import("std");
 
-const REGISTRY = "registry";
 const BIN = "bin";
+const CACHE = "cache";
+const REGISTRY = "registry";
+const SOURCE = "source";
 
 pub const Config = struct {
     dir: []const u8,
 };
 
 const Compression = enum {
-    raw,
     tar,
     tgz,
-    zip,
+};
+
+const InstallEnv = enum {
+    prefix,
+    man,
+};
+
+const InstallArgTag = enum {
+    str,
+    env,
+};
+
+const InstallArg = union(InstallArgTag) {
+    str: []const u8,
+    env: InstallEnv,
 };
 
 pub const Package = struct {
     name: []const u8,
     url: []const u8,
+    install: []const InstallArg,
 };
 
-fn installPackage() !void {
+fn buildInstallCommand(
+    allocator: std.mem.Allocator,
+    package: Package,
+    install_env_map: std.hash_map.AutoHashMap(InstallEnv, []const u8)
+) ![]const u8 {
+    var command: []u8 = "";
+    for (package.install) |arg| {
+        switch (arg) {
+            .str => |str_arg| {
+                const new_command = try std.mem.concat(allocator, u8, &[_][]const u8{command, str_arg});
+                command = new_command;
+            },
+            .env => |env_arg| {
+                const env_arg_str = install_env_map.get(env_arg);
+                if (env_arg_str == null) {
+                    return error.InstallArgNotFound;
+                }
+                const new_command = try std.mem.concat(allocator, u8, &[_][]const u8{command, env_arg_str.?});
+                command = new_command;
+            },
+        }
+    }
+    return command;
+}
+
+fn installPackage(
+    allocator: std.mem.Allocator,
+    package: Package,
+    install_env_map: std.hash_map.AutoHashMap(InstallEnv, []const u8)
+) !void {
     std.debug.print("Installing package...\n", .{});
+    const command = try buildInstallCommand(allocator, package, install_env_map);
+    std.debug.print("command: {s}\n", .{command});
+
+    // TODO: split command to array for process
+
+    // const space_idx = std.mem.indexOf(u8, command, " ");
+    // if (space_idx == null) {
+    //     return error.InstallCommandInvalid;
+    // }
+    // const echo = &[_][]const u8{command[0 .. space_idx.?], command[space_idx.? + 1  ..]};
+    // var child_process = std.process.Child.init(echo, allocator);
+    // try child_process.spawn();
+    // const status = try child_process.wait();
+    // _ = status;
 }
 
 fn isNumber(char: u8) bool {
@@ -71,20 +130,14 @@ test "extract sem ver" {
 }
 
 fn extractPackage(
-    package: Package,
-    bin_dir: std.fs.Dir,
+    dir: std.fs.Dir,
     file: *std.fs.File,
     compression: Compression,
-    semver: []const u8,
 ) !void {
     std.debug.print("Extracting package...\n", .{});
     var file_read_buf: [1024]u8 = undefined;
     var reader = file.*.reader(&file_read_buf);
     const reader_interface = &reader.interface;
-
-    try bin_dir.makeDir(package.name);
-    var pack_dir = try bin_dir.openDir(package.name, .{});
-    defer pack_dir.close();
 
     switch (compression) {
         .tgz => {
@@ -96,11 +149,7 @@ fn extractPackage(
             );
             const decompress_reader = &decompressor.reader;
 
-            try pack_dir.makeDir(semver);
-            var ver_dir = try pack_dir.openDir(semver, .{});
-            defer ver_dir.close();
-
-            std.tar.pipeToFileSystem(ver_dir, decompress_reader, .{
+            std.tar.pipeToFileSystem(dir, decompress_reader, .{
                 .mode_mode = .ignore,
                 .strip_components = 1,
             }) catch |err| {
@@ -141,8 +190,8 @@ pub fn install(package_name: []const u8) !void {
     defer registry.close();
     const allocator = std.heap.page_allocator;
 
-    const name = try std.mem.concat(allocator, u8, &[_][]const u8{package_name, ".zon"});
-    const package_str = try registry.readFileAllocOptions(allocator, name, 2048, null, std.mem.Alignment.@"1", 0);
+    const register_name = try std.mem.concat(allocator, u8, &[_][]const u8{package_name, ".zon"});
+    const package_str = try registry.readFileAllocOptions(allocator, register_name, 2048, null, std.mem.Alignment.@"1", 0);
     const package_zon = try std.zon.parse.fromSlice(
         Package,
         allocator,
@@ -151,29 +200,55 @@ pub fn install(package_name: []const u8) !void {
         .{ .ignore_unknown_fields = true }
     );
 
-    var bin = try cwd.openDir(BIN, .{});
-    defer bin.close();
+    var cache_dir = try cwd.openDir(CACHE, .{});
+    defer cache_dir.close();
 
     const last_slash_idx = std.mem.lastIndexOf(u8, package_zon.url, "/");
-    const file_name = package_zon.url[(last_slash_idx orelse 0) + 1 ..];
-    var file = try bin.createFile(file_name, .{
+    const compressed_file_name = package_zon.url[(last_slash_idx orelse 0) + 1 ..];
+    var compressed_file = try cache_dir.createFile(compressed_file_name, .{
         .read = true,
     });
     defer {
-        file.close();
-        bin.deleteFile(file_name) catch unreachable;
+        compressed_file.close();
+        cache_dir.deleteFile(compressed_file_name) catch unreachable;
     }
 
+    try fetchPackage(allocator, package_zon, &compressed_file);
+
     var compression: Compression = undefined;
-    if (std.mem.endsWith(u8, file_name, ".tar.gz")) {
+    if (std.mem.endsWith(u8, compressed_file_name, ".tar.gz")) {
         compression = .tgz;
     } else {
         return error.PackageCompressionNotSupported;
     }
 
-    try fetchPackage(allocator, package_zon, &file);
-    try extractPackage(package_zon, bin, &file, compression, extractSemVer(file_name) orelse file_name);
-    try installPackage();
+    try cache_dir.makeDir(package_zon.name);
+    var cache_pack_dir = try cache_dir.openDir(package_zon.name, .{});
+    defer cache_pack_dir.close();
+
+    try extractPackage(cache_pack_dir, &compressed_file, compression);
+
+    var source_dir = try cwd.openDir(SOURCE, .{});
+    defer source_dir.close();
+    try source_dir.makeDir(package_zon.name);
+    var pack_dir = try source_dir.openDir(package_zon.name, .{});
+    defer pack_dir.close();
+    const semver = extractSemVer(compressed_file_name) orelse compressed_file_name;
+    try pack_dir.makeDir(semver);
+    var ver_dir = try pack_dir.openDir(semver, .{});
+    defer ver_dir.close();
+
+    var install_env_map = std.hash_map.AutoHashMap(InstallEnv, []const u8).init(allocator);
+    defer install_env_map.deinit();
+
+    var prefix_str: [1024]u8 = undefined;
+    _ = try ver_dir.realpath("./", &prefix_str);
+    try install_env_map.put(.prefix, &prefix_str);
+    try install_env_map.put(.man, prefix_str ++ "/share/man");
+
+    try cache_pack_dir.setAsCwd();
+    try installPackage(allocator, package_zon, install_env_map);
+    try cwd.setAsCwd();
 
     std.debug.print("Package installed successfully!\n", .{});
 }
