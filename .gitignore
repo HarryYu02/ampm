@@ -11,3 +11,6 @@ zig-out/
 
 # Output
 bin/
+
+# Development
+test.sh
