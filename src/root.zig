@@ -37,23 +37,15 @@ fn extractSemVer(str: []const u8) ?[]const u8 {
     if (str.len < 5) return null;
     while (start < str.len - 4) : (start += 1) {
         if (isNumber(str[start])) {
-            while (!isNumber(str[start])) {
-                start += 1;
-            }
+            while (!isNumber(str[start])) { start += 1; }
             end = start;
-            while (end < str.len and isNumber(str[end])) {
-                end += 1;
-            }
+            while (end < str.len and isNumber(str[end])) { end += 1; }
             if (end < str.len and str[end] == '.') {
                 end += 1;
-                while (end < str.len and isNumber(str[end])) {
-                    end += 1;
-                }
+                while (end < str.len and isNumber(str[end])) { end += 1; }
                 if (end < str.len and str[end] == '.') {
                     end += 1;
-                    while (end < str.len and isNumber(str[end])) {
-                        end += 1;
-                    }
+                    while (end < str.len and isNumber(str[end])) { end += 1; }
                     if (isNumber(str[end - 1])) {
                         return str[start .. end];
                     }
@@ -82,7 +74,8 @@ fn extractPackage(
     package: Package,
     bin_dir: std.fs.Dir,
     file: *std.fs.File,
-    compression: Compression
+    compression: Compression,
+    semver: []const u8,
 ) !void {
     std.debug.print("Extracting package...\n", .{});
     var file_read_buf: [1024]u8 = undefined;
@@ -103,8 +96,13 @@ fn extractPackage(
             );
             const decompress_reader = &decompressor.reader;
 
-            std.tar.pipeToFileSystem(pack_dir, decompress_reader, .{
+            try pack_dir.makeDir(semver);
+            var ver_dir = try pack_dir.openDir(semver, .{});
+            defer ver_dir.close();
+
+            std.tar.pipeToFileSystem(ver_dir, decompress_reader, .{
                 .mode_mode = .ignore,
+                .strip_components = 1,
             }) catch |err| {
                 std.debug.print("Tar err: {any}\n", .{err});
                 return err;
@@ -141,8 +139,8 @@ pub fn install(package_name: []const u8) !void {
     const cwd = std.fs.cwd();
     var registry = try cwd.openDir(REGISTRY, .{});
     defer registry.close();
-
     const allocator = std.heap.page_allocator;
+
     const name = try std.mem.concat(allocator, u8, &[_][]const u8{package_name, ".zon"});
     const package_str = try registry.readFileAllocOptions(allocator, name, 2048, null, std.mem.Alignment.@"1", 0);
     const package_zon = try std.zon.parse.fromSlice(
@@ -174,8 +172,8 @@ pub fn install(package_name: []const u8) !void {
     }
 
     try fetchPackage(allocator, package_zon, &file);
-    try extractPackage(package_zon, bin, &file, compression);
+    try extractPackage(package_zon, bin, &file, compression, extractSemVer(file_name) orelse file_name);
     try installPackage();
 
-    std.debug.print("Package installed!\n", .{});
+    std.debug.print("Package installed successfully!\n", .{});
 }
