@@ -67,20 +67,12 @@ fn installPackage(
     install_env_map: std.hash_map.AutoHashMap(InstallEnv, []const u8)
 ) !void {
     std.debug.print("Installing package...\n", .{});
-    const command = try buildInstallCommand(allocator, package, install_env_map);
-    std.debug.print("command: {s}\n", .{command});
-
-    // TODO: split command to array for process
-
-    // const space_idx = std.mem.indexOf(u8, command, " ");
-    // if (space_idx == null) {
-    //     return error.InstallCommandInvalid;
-    // }
-    // const echo = &[_][]const u8{command[0 .. space_idx.?], command[space_idx.? + 1  ..]};
-    // var child_process = std.process.Child.init(echo, allocator);
-    // try child_process.spawn();
-    // const status = try child_process.wait();
-    // _ = status;
+    const command_str = try buildInstallCommand(allocator, package, install_env_map);
+    const command = &[_][]const u8{"sh", "-c", command_str};
+    var child_process = std.process.Child.init(command, allocator);
+    try child_process.spawn();
+    const status = try child_process.wait();
+    _ = status;
 }
 
 fn isNumber(char: u8) bool {
@@ -242,9 +234,11 @@ pub fn install(package_name: []const u8) !void {
     defer install_env_map.deinit();
 
     var prefix_str: [1024]u8 = undefined;
-    _ = try ver_dir.realpath("./", &prefix_str);
-    try install_env_map.put(.prefix, &prefix_str);
-    try install_env_map.put(.man, prefix_str ++ "/share/man");
+    const prefix = try ver_dir.realpath("./", &prefix_str);
+    try install_env_map.put(.prefix, prefix);
+    const man = try std.mem.concat(allocator, u8, &[_][]const u8{prefix, "/share/man"});
+    try install_env_map.put(.man, man);
+
 
     try cache_pack_dir.setAsCwd();
     try installPackage(allocator, package_zon, install_env_map);
