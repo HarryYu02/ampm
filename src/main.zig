@@ -53,7 +53,10 @@ pub fn main() !void {
                 std.debug.print("No package provided.\n", .{});
                 return;
             }
-            std.debug.print("Not implemented\n", .{});
+            lib.uninstall(package_arg.?) catch |err| {
+                std.debug.print("Error uninstalling package: {any}\n", .{err});
+                return;
+            };
         },
     }
 }

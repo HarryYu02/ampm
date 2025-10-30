@@ -256,3 +256,16 @@ pub fn install(package_name: []const u8) !void {
 
     std.debug.print("Package installed successfully!\n", .{});
 }
+
+/// Uninstall a package by name
+pub fn uninstall(package_name: []const u8) !void {
+    const cwd = std.fs.cwd();
+    var root = try cwd.openDir("./", .{});
+    defer root.close();
+
+    var bin_dir = try root.openDir(BIN, .{});
+    defer bin_dir.close();
+    try bin_dir.deleteFile(package_name);
+
+    std.debug.print("Package uninstalled successfully!\n", .{});
+}
