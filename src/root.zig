@@ -32,7 +32,10 @@ const InstallArg = union(InstallArgTag) {
 
 pub const Package = struct {
     name: []const u8,
+    desc: []const u8,
+    homepage: []const u8,
     url: []const u8,
+    license: []const u8,
     install: []const InstallArg,
 };
 
