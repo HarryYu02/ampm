@@ -18,6 +18,7 @@ zig build
 ## Usage
 
 ```bash
+ampm --version
 ampm [command] [package]
 ```
 
@@ -26,7 +27,6 @@ ampm [command] [package]
 
 ## Todo
 
-- version
 - link man pages
 - checksum
 - resolve dependencies

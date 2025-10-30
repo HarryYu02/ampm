@@ -4,9 +4,12 @@ const std = @import("std");
 const process = std.process;
 const mem = std.mem;
 
+const VERSION = "0.0.0";
+
 const Command = enum {
     install,
     uninstall,
+    version,
 };
 
 pub fn main() !void {
@@ -30,6 +33,8 @@ pub fn main() !void {
         command = Command.install;
     } else if (mem.eql(u8, command_arg.?, "uninstall")) {
         command = Command.uninstall;
+    } else if (mem.eql(u8, command_arg.?, "--version")) {
+        command = Command.version;
     } else {
         std.debug.print("Unknown command provided.\n", .{});
         return;
@@ -58,5 +63,8 @@ pub fn main() !void {
                 return;
             };
         },
+        .version => {
+            std.debug.print("ampm v{s}\n", .{ VERSION });
+        }
     }
 }
