@@ -15,7 +15,7 @@ pub fn main() !void {
         else => {
             std.debug.print("OS not supported.\n", .{});
             return;
-        }
+        },
     }
 
     var command: Command = undefined;

@@ -36,18 +36,16 @@ pub const Package = struct {
     install: []const InstallArg,
 };
 
-fn linkPackage() !void {}
+fn linkPackage() !void {
+    std.debug.print("Linking package...\n", .{});
+}
 
-fn buildInstallCommand(
-    allocator: std.mem.Allocator,
-    package: Package,
-    install_env_map: std.hash_map.AutoHashMap(InstallEnv, []const u8)
-) ![]const u8 {
+fn buildInstallCommand(allocator: std.mem.Allocator, package: Package, install_env_map: std.hash_map.AutoHashMap(InstallEnv, []const u8)) ![]const u8 {
     var command: []u8 = "";
     for (package.install) |arg| {
         switch (arg) {
             .str => |str_arg| {
-                const new_command = try std.mem.concat(allocator, u8, &[_][]const u8{command, str_arg});
+                const new_command = try std.mem.concat(allocator, u8, &[_][]const u8{ command, str_arg });
                 command = new_command;
             },
             .env => |env_arg| {
@@ -55,7 +53,7 @@ fn buildInstallCommand(
                 if (env_arg_str == null) {
                     return error.InstallArgNotFound;
                 }
-                const new_command = try std.mem.concat(allocator, u8, &[_][]const u8{command, env_arg_str.?});
+                const new_command = try std.mem.concat(allocator, u8, &[_][]const u8{ command, env_arg_str.? });
                 command = new_command;
             },
         }
@@ -63,14 +61,10 @@ fn buildInstallCommand(
     return command;
 }
 
-fn installPackage(
-    allocator: std.mem.Allocator,
-    package: Package,
-    install_env_map: std.hash_map.AutoHashMap(InstallEnv, []const u8)
-) !void {
+fn installPackage(allocator: std.mem.Allocator, package: Package, install_env_map: std.hash_map.AutoHashMap(InstallEnv, []const u8)) !void {
     std.debug.print("Installing package...\n", .{});
     const command_str = try buildInstallCommand(allocator, package, install_env_map);
-    const command = &[_][]const u8{"sh", "-c", command_str};
+    const command = &[_][]const u8{ "sh", "-c", command_str };
     var child_process = std.process.Child.init(command, allocator);
     try child_process.spawn();
     const status = try child_process.wait();
@@ -90,17 +84,25 @@ fn extractSemVer(str: []const u8) ?[]const u8 {
     if (str.len < 5) return null;
     while (start < str.len - 4) : (start += 1) {
         if (isNumber(str[start])) {
-            while (!isNumber(str[start])) { start += 1; }
+            while (!isNumber(str[start])) {
+                start += 1;
+            }
             end = start;
-            while (end < str.len and isNumber(str[end])) { end += 1; }
+            while (end < str.len and isNumber(str[end])) {
+                end += 1;
+            }
             if (end < str.len and str[end] == '.') {
                 end += 1;
-                while (end < str.len and isNumber(str[end])) { end += 1; }
+                while (end < str.len and isNumber(str[end])) {
+                    end += 1;
+                }
                 if (end < str.len and str[end] == '.') {
                     end += 1;
-                    while (end < str.len and isNumber(str[end])) { end += 1; }
+                    while (end < str.len and isNumber(str[end])) {
+                        end += 1;
+                    }
                     if (isNumber(str[end - 1])) {
-                        return str[start .. end];
+                        return str[start..end];
                     }
                 } else {
                     start = end;
@@ -136,11 +138,7 @@ fn extractPackage(
     switch (compression) {
         .tgz => {
             var decompress_buf: [std.compress.flate.max_window_len]u8 = undefined;
-            var decompressor: std.compress.flate.Decompress = .init(
-                reader_interface,
-                .gzip,
-                &decompress_buf
-            );
+            var decompressor: std.compress.flate.Decompress = .init(reader_interface, .gzip, &decompress_buf);
             const decompress_reader = &decompressor.reader;
 
             std.tar.pipeToFileSystem(dir, decompress_reader, .{
@@ -153,13 +151,13 @@ fn extractPackage(
         },
         else => {
             return error.PackageCompressionNotSupported;
-        }
+        },
     }
 }
 
 fn fetchPackage(allocator: std.mem.Allocator, package: Package, file: *std.fs.File) !void {
     std.debug.print("Fetching package from: {s}\n", .{package.url});
-    var client = std.http.Client {
+    var client = std.http.Client{
         .allocator = allocator,
     };
 
@@ -184,15 +182,9 @@ pub fn install(package_name: []const u8) !void {
     defer registry.close();
     const allocator = std.heap.page_allocator;
 
-    const register_name = try std.mem.concat(allocator, u8, &[_][]const u8{package_name, ".zon"});
+    const register_name = try std.mem.concat(allocator, u8, &[_][]const u8{ package_name, ".zon" });
     const package_str = try registry.readFileAllocOptions(allocator, register_name, 2048, null, std.mem.Alignment.@"1", 0);
-    const package_zon = try std.zon.parse.fromSlice(
-        Package,
-        allocator,
-        package_str,
-        null,
-        .{ .ignore_unknown_fields = true }
-    );
+    const package_zon = try std.zon.parse.fromSlice(Package, allocator, package_str, null, .{ .ignore_unknown_fields = true });
 
     var cache_dir = try cwd.openDir(CACHE, .{});
     defer cache_dir.close();
@@ -241,7 +233,7 @@ pub fn install(package_name: []const u8) !void {
     var prefix_str: [1024]u8 = undefined;
     const prefix = try ver_dir.realpath("./", &prefix_str);
     try install_env_map.put(.prefix, prefix);
-    const man = try std.mem.concat(allocator, u8, &[_][]const u8{prefix, "/share/man"});
+    const man = try std.mem.concat(allocator, u8, &[_][]const u8{ prefix, "/share/man" });
     try install_env_map.put(.man, man);
 
     try cache_pack_dir.setAsCwd();
