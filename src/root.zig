@@ -36,6 +36,8 @@ pub const Package = struct {
     install: []const InstallArg,
 };
 
+fn linkPackage() !void {}
+
 fn buildInstallCommand(
     allocator: std.mem.Allocator,
     package: Package,
@@ -216,7 +218,10 @@ pub fn install(package_name: []const u8) !void {
 
     try cache_dir.makeDir(package_zon.name);
     var cache_pack_dir = try cache_dir.openDir(package_zon.name, .{});
-    defer cache_pack_dir.close();
+    defer {
+        cache_pack_dir.close();
+        cache_dir.deleteTree(package_zon.name) catch unreachable;
+    }
 
     try extractPackage(cache_pack_dir, &compressed_file, compression);
 
@@ -239,10 +244,12 @@ pub fn install(package_name: []const u8) !void {
     const man = try std.mem.concat(allocator, u8, &[_][]const u8{prefix, "/share/man"});
     try install_env_map.put(.man, man);
 
-
     try cache_pack_dir.setAsCwd();
     try installPackage(allocator, package_zon, install_env_map);
+
     try cwd.setAsCwd();
+
+    try linkPackage();
 
     std.debug.print("Package installed successfully!\n", .{});
 }
