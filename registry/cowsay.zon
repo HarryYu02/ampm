@@ -5,9 +5,11 @@
     .url = "https://github.com/cowsay-org/cowsay/archive/refs/tags/v3.8.4.tar.gz",
     .license = "GPL-3.0-only",
     .install = .{
-        .{ .str = "make" },
-        .{ .str = " install" },
-        .{ .str = " prefix=" },
-        .{ .env = .prefix },
+        .{
+            .{ .str = "make" },
+            .{ .str = " install" },
+            .{ .str = " prefix=" },
+            .{ .env = .prefix },
+        },
     },
 }

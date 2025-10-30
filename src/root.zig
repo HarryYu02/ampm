@@ -36,7 +36,7 @@ pub const Package = struct {
     homepage: []const u8,
     url: []const u8,
     license: []const u8,
-    install: []const InstallArg,
+    install: []const []const InstallArg,
 };
 
 fn linkPackage(bin_dir: std.fs.Dir, source_dir: std.fs.Dir, name: []const u8) !void {
@@ -46,9 +46,9 @@ fn linkPackage(bin_dir: std.fs.Dir, source_dir: std.fs.Dir, name: []const u8) !v
     try bin_dir.symLink(link_path, name, .{});
 }
 
-fn buildInstallCommand(allocator: std.mem.Allocator, package: Package, install_env_map: std.hash_map.AutoHashMap(InstallEnv, []const u8)) ![]const u8 {
+fn buildInstallCommand(allocator: std.mem.Allocator, raw_command: []const InstallArg, install_env_map: std.hash_map.AutoHashMap(InstallEnv, []const u8)) ![]const u8 {
     var command: []u8 = "";
-    for (package.install) |arg| {
+    for (raw_command) |arg| {
         switch (arg) {
             .str => |str_arg| {
                 const new_command = try std.mem.concat(allocator, u8, &[_][]const u8{ command, str_arg });
@@ -69,12 +69,14 @@ fn buildInstallCommand(allocator: std.mem.Allocator, package: Package, install_e
 
 fn installPackage(allocator: std.mem.Allocator, package: Package, install_env_map: std.hash_map.AutoHashMap(InstallEnv, []const u8)) !void {
     std.debug.print("Installing package...\n", .{});
-    const command_str = try buildInstallCommand(allocator, package, install_env_map);
-    const command = &[_][]const u8{ "sh", "-c", command_str };
-    var child_process = std.process.Child.init(command, allocator);
-    try child_process.spawn();
-    const status = try child_process.wait();
-    _ = status;
+    for (package.install) |raw_command| {
+        const command_str = try buildInstallCommand(allocator, raw_command, install_env_map);
+        const command = &[_][]const u8{ "sh", "-c", command_str };
+        var child_process = std.process.Child.init(command, allocator);
+        try child_process.spawn();
+        const status = try child_process.wait();
+        _ = status;
+    }
 }
 
 fn isNumber(char: u8) bool {
