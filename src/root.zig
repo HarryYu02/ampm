@@ -36,8 +36,11 @@ pub const Package = struct {
     install: []const InstallArg,
 };
 
-fn linkPackage() !void {
+fn linkPackage(bin_dir: std.fs.Dir, source_dir: std.fs.Dir, name: []const u8) !void {
     std.debug.print("Linking package...\n", .{});
+    var path_buf: [1024]u8 = undefined;
+    const link_path = try source_dir.realpath(name, &path_buf);
+    try bin_dir.symLink(link_path, name, .{});
 }
 
 fn buildInstallCommand(allocator: std.mem.Allocator, package: Package, install_env_map: std.hash_map.AutoHashMap(InstallEnv, []const u8)) ![]const u8 {
@@ -178,7 +181,10 @@ fn fetchPackage(allocator: std.mem.Allocator, package: Package, file: *std.fs.Fi
 /// Install a package by name
 pub fn install(package_name: []const u8) !void {
     const cwd = std.fs.cwd();
-    var registry = try cwd.openDir(REGISTRY, .{});
+    var root = try cwd.openDir("./", .{});
+    defer root.close();
+
+    var registry = try root.openDir(REGISTRY, .{});
     defer registry.close();
     const allocator = std.heap.page_allocator;
 
@@ -186,7 +192,7 @@ pub fn install(package_name: []const u8) !void {
     const package_str = try registry.readFileAllocOptions(allocator, register_name, 2048, null, std.mem.Alignment.@"1", 0);
     const package_zon = try std.zon.parse.fromSlice(Package, allocator, package_str, null, .{ .ignore_unknown_fields = true });
 
-    var cache_dir = try cwd.openDir(CACHE, .{});
+    var cache_dir = try root.openDir(CACHE, .{});
     defer cache_dir.close();
 
     const last_slash_idx = std.mem.lastIndexOf(u8, package_zon.url, "/");
@@ -217,7 +223,7 @@ pub fn install(package_name: []const u8) !void {
 
     try extractPackage(cache_pack_dir, &compressed_file, compression);
 
-    var source_dir = try cwd.openDir(SOURCE, .{});
+    var source_dir = try root.openDir(SOURCE, .{});
     defer source_dir.close();
     try source_dir.makeDir(package_zon.name);
     var pack_dir = try source_dir.openDir(package_zon.name, .{});
@@ -239,9 +245,14 @@ pub fn install(package_name: []const u8) !void {
     try cache_pack_dir.setAsCwd();
     try installPackage(allocator, package_zon, install_env_map);
 
-    try cwd.setAsCwd();
+    try root.setAsCwd();
+    var source_bin_dir = try ver_dir.openDir(BIN, .{});
+    defer source_bin_dir.close();
 
-    try linkPackage();
+    var bin_dir = try root.openDir(BIN, .{});
+    defer bin_dir.close();
+
+    try linkPackage(bin_dir, source_bin_dir, package_zon.name);
 
     std.debug.print("Package installed successfully!\n", .{});
 }
