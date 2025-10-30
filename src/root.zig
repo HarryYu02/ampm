@@ -46,7 +46,13 @@ fn linkPackage(bin_dir: std.fs.Dir, source_dir: std.fs.Dir, name: []const u8) !v
     try bin_dir.symLink(link_path, name, .{});
 }
 
-fn buildInstallCommand(allocator: std.mem.Allocator, raw_command: []const InstallArg, install_env_map: std.hash_map.AutoHashMap(InstallEnv, []const u8)) ![]const u8 {
+// zig fmt: off
+fn buildInstallCommand(
+    allocator: std.mem.Allocator,
+    raw_command: []const InstallArg,
+    install_env_map: std.hash_map.AutoHashMap(InstallEnv, []const u8)
+) ![]const u8 {
+// zig fmt: on
     var command: []u8 = "";
     for (raw_command) |arg| {
         switch (arg) {
@@ -67,12 +73,18 @@ fn buildInstallCommand(allocator: std.mem.Allocator, raw_command: []const Instal
     return command;
 }
 
-fn installPackage(allocator: std.mem.Allocator, package: Package, install_env_map: std.hash_map.AutoHashMap(InstallEnv, []const u8)) !void {
+// zig fmt: off
+fn installPackage(
+    allocator: std.mem.Allocator,
+    package: Package,
+    install_env_map: std.hash_map.AutoHashMap(InstallEnv, []const u8)
+) !void {
+// zig fmt: on
     std.debug.print("Installing package...\n", .{});
     for (package.install) |raw_command| {
         const command_str = try buildInstallCommand(allocator, raw_command, install_env_map);
-        const command = &[_][]const u8{ "sh", "-c", command_str };
-        var child_process = std.process.Child.init(command, allocator);
+        const script = &[_][]const u8{ "sh", "-c", command_str };
+        var child_process = std.process.Child.init(script, allocator);
         try child_process.spawn();
         const status = try child_process.wait();
         _ = status;
@@ -194,8 +206,22 @@ pub fn install(package_name: []const u8) !void {
     const allocator = std.heap.page_allocator;
 
     const register_name = try std.mem.concat(allocator, u8, &[_][]const u8{ package_name, ".zon" });
-    const package_str = try registry.readFileAllocOptions(allocator, register_name, 2048, null, std.mem.Alignment.@"1", 0);
-    const package_zon = try std.zon.parse.fromSlice(Package, allocator, package_str, null, .{ .ignore_unknown_fields = true });
+    // zig fmt: off
+    const package_str = try registry.readFileAllocOptions(
+        allocator,
+        register_name,
+        2048,
+        null,
+        std.mem.Alignment.@"1", 0
+    );
+    const package_zon = try std.zon.parse.fromSlice(
+        Package,
+        allocator,
+        package_str,
+        null,
+        .{ .ignore_unknown_fields = true }
+    );
+    // zig fmt: on
 
     var cache_dir = try root.openDir(CACHE, .{});
     defer cache_dir.close();

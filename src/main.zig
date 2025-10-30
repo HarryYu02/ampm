@@ -64,7 +64,7 @@ pub fn main() !void {
             };
         },
         .version => {
-            std.debug.print("ampm v{s}\n", .{ VERSION });
-        }
+            std.debug.print("ampm v{s}\n", .{VERSION});
+        },
     }
 }
