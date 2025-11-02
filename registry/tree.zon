@@ -6,8 +6,7 @@
     .license = "GPL-2.0-or-later",
     .install = .{
         .{
-            .{ .str = "make" },
-            .{ .str = " PREFIX=" },
+            .{ .str = "make PREFIX=" },
             .{ .env = .prefix },
             .{ .str = " MANDIR=" },
             .{ .env = .man },

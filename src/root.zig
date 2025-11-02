@@ -1,4 +1,5 @@
 //! libampm
+
 const std = @import("std");
 
 const BIN = "bin";
@@ -13,6 +14,7 @@ pub const Config = struct {
 const Compression = enum {
     tar,
     tgz,
+    txz,
 };
 
 const InstallEnv = enum {
@@ -96,8 +98,6 @@ fn isNumber(char: u8) bool {
 }
 
 /// Extract sem ver from str, return null if sem ver is not found.
-/// "test-12.34.5" -> "12.34.5"
-/// "foo-v1.2." -> null
 fn extractSemVer(str: []const u8) ?[]const u8 {
     var start: u8 = 0;
     var end: u8 = 0;
@@ -156,6 +156,15 @@ fn extractPackage(
     const reader_interface = &reader.interface;
 
     switch (compression) {
+        .tar => {
+            std.tar.pipeToFileSystem(dir, reader_interface, .{
+                .mode_mode = .ignore,
+                .strip_components = 1,
+            }) catch |err| {
+                std.debug.print("Tar err: {any}\n", .{err});
+                return err;
+            };
+        },
         .tgz => {
             var decompress_buf: [std.compress.flate.max_window_len]u8 = undefined;
             var decompressor: std.compress.flate.Decompress = .init(reader_interface, .gzip, &decompress_buf);
@@ -296,7 +305,10 @@ pub fn uninstall(package_name: []const u8) !void {
 
     var bin_dir = try root.openDir(BIN, .{});
     defer bin_dir.close();
-    try bin_dir.deleteFile(package_name);
+    var source_dir = try root.openDir(SOURCE, .{});
+    defer source_dir.close();
 
+    try bin_dir.deleteFile(package_name);
+    try source_dir.deleteTree(package_name);
     std.debug.print("Package uninstalled successfully!\n", .{});
 }

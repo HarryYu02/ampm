@@ -27,6 +27,7 @@ ampm [command] [package]
 
 ## Todo
 
+- (cli) read config file
 - link man pages
 - checksum
 - resolve dependencies

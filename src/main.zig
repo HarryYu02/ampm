@@ -5,12 +5,30 @@ const process = std.process;
 const mem = std.mem;
 
 const VERSION = "0.0.0";
+const CONFIG = "config.zon";
 
 const Command = enum {
+    help,
     install,
     uninstall,
     version,
 };
+
+fn parseCommand(command_arg: ?[]const u8) !Command {
+    if (command_arg == null) {
+        std.debug.print("No command provided.\n", .{});
+        return Command.help;
+    } else if (mem.eql(u8, command_arg.?, "install")) {
+        return Command.install;
+    } else if (mem.eql(u8, command_arg.?, "uninstall")) {
+        return Command.uninstall;
+    } else if (mem.eql(u8, command_arg.?, "--version")) {
+        return Command.version;
+    } else {
+        std.debug.print("Unknown command provided.\n", .{});
+        return error.UnknownCommand;
+    }
+}
 
 pub fn main() !void {
     switch (builtin.target.os.tag) {
@@ -21,24 +39,10 @@ pub fn main() !void {
         },
     }
 
-    var command: Command = undefined;
-
     var args_iter = process.args();
     _ = args_iter.next();
-    const command_arg = args_iter.next();
-    if (command_arg == null) {
-        std.debug.print("No command provided.\n", .{});
-        return;
-    } else if (mem.eql(u8, command_arg.?, "install")) {
-        command = Command.install;
-    } else if (mem.eql(u8, command_arg.?, "uninstall")) {
-        command = Command.uninstall;
-    } else if (mem.eql(u8, command_arg.?, "--version")) {
-        command = Command.version;
-    } else {
-        std.debug.print("Unknown command provided.\n", .{});
-        return;
-    }
+
+    const command = try parseCommand(args_iter.next());
 
     switch (command) {
         .install => {
@@ -65,6 +69,10 @@ pub fn main() !void {
         },
         .version => {
             std.debug.print("ampm v{s}\n", .{VERSION});
+        },
+        else => {
+            std.debug.print("Command not implemented.\n", .{});
+            return;
         },
     }
 }
