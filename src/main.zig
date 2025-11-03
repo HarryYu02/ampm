@@ -9,9 +9,13 @@ const CONFIG = "config.zon";
 
 const Command = enum {
     help,
-    install,
-    uninstall,
     version,
+    search,
+    info,
+    list,
+    install,
+    update,
+    uninstall,
 };
 
 fn parseCommand(command_arg: ?[]const u8) !Command {
@@ -22,6 +26,14 @@ fn parseCommand(command_arg: ?[]const u8) !Command {
         return Command.install;
     } else if (mem.eql(u8, command_arg.?, "uninstall")) {
         return Command.uninstall;
+    } else if (mem.eql(u8, command_arg.?, "search")) {
+        return Command.search;
+    } else if (mem.eql(u8, command_arg.?, "info")) {
+        return Command.info;
+    } else if (mem.eql(u8, command_arg.?, "list")) {
+        return Command.list;
+    } else if (mem.eql(u8, command_arg.?, "update")) {
+        return Command.update;
     } else if (mem.eql(u8, command_arg.?, "--version")) {
         return Command.version;
     } else {

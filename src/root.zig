@@ -50,7 +50,7 @@ pub const Package = struct {
 };
 
 fn linkPackage(bin_dir: std.fs.Dir, source_dir: std.fs.Dir, name: []const u8) !void {
-    std.debug.print("Linking package...\n", .{});
+    std.debug.print("Linking {s}...\n", .{name});
     var path_buf: [1024]u8 = undefined;
     const link_path = try source_dir.realpath(name, &path_buf);
     try bin_dir.symLink(link_path, name, .{});
@@ -303,23 +303,44 @@ pub fn install(package_name: []const u8, config: Config) !void {
     var bin_dir = try std.fs.openDirAbsolute(config.bin, .{});
     defer bin_dir.close();
 
-    try linkPackage(bin_dir, source_bin_dir, package_zon.name);
+    var source_bin_iter = source_bin_dir.iterate();
+    while (source_bin_iter.next()) |binary| {
+        if (binary == null) break;
+        try linkPackage(bin_dir, source_bin_dir, binary.?.name);
+    } else |err| {
+        return err;
+    }
 
     std.debug.print("Package installed successfully!\n", .{});
 }
 
 /// Uninstall a package by name
 pub fn uninstall(package_name: []const u8, config: Config) !void {
-    const cwd = std.fs.cwd();
-    var root = try cwd.openDir("./", .{});
-    defer root.close();
-
     var bin_dir = try std.fs.openDirAbsolute(config.bin, .{});
     defer bin_dir.close();
-    var source_dir = try root.openDir(config.source, .{});
-    defer source_dir.close();
 
-    try bin_dir.deleteFile(package_name);
+    var source_dir = try std.fs.openDirAbsolute(config.source, .{});
+    defer source_dir.close();
+    var pack_dir = try source_dir.openDir(package_name, .{});
+    defer pack_dir.close();
+    var pack_iter = pack_dir.iterate();
+    const ver_entry = try pack_iter.next();
+    if (ver_entry == null) return error.PackageVersionNotFound;
+    const ver = ver_entry.?.name;
+    var ver_dir = try pack_dir.openDir(ver, .{});
+    defer ver_dir.close();
+
+    var source_bin_dir = try ver_dir.openDir("bin", .{});
+    defer source_bin_dir.close();
+    var source_bin_iter = source_bin_dir.iterate();
+
+    while (source_bin_iter.next()) |binary| {
+        if (binary == null) break;
+        try bin_dir.deleteFile(binary.?.name);
+    } else |err| {
+        return err;
+    }
+
     try source_dir.deleteTree(package_name);
     std.debug.print("Package uninstalled successfully!\n", .{});
 }
