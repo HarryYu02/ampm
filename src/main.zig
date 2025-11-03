@@ -31,8 +31,34 @@ fn parseCommand(command_arg: ?[]const u8) !Command {
 }
 
 pub fn main() !void {
-    switch (builtin.target.os.tag) {
-        .macos => {},
+    var config: lib.Config = .{
+        .root = undefined,
+        .bin = undefined,
+        .cache = undefined,
+        .registry = undefined,
+        .source = undefined,
+    };
+
+    const os = builtin.target.os.tag;
+    const arch = builtin.target.cpu.arch;
+
+    switch (os) {
+        .macos => {
+            switch (arch) {
+                .x86_64 => {
+                    const root = "/usr/local/ampm";
+                    config.root = root;
+                    config.bin = "/usr/local/bin";
+                    config.cache = root ++ "/cache";
+                    config.registry = root ++ "/registry";
+                    config.source = root ++ "/source";
+                },
+                else => {
+                    std.debug.print("Architecture not supported.\n", .{});
+                    return;
+                },
+            }
+        },
         else => {
             std.debug.print("OS not supported.\n", .{});
             return;
@@ -51,7 +77,7 @@ pub fn main() !void {
                 std.debug.print("No package provided.\n", .{});
                 return;
             }
-            lib.install(package_arg.?) catch |err| {
+            lib.install(package_arg.?, config) catch |err| {
                 std.debug.print("Error installing package: {any}\n", .{err});
                 return;
             };
@@ -62,7 +88,7 @@ pub fn main() !void {
                 std.debug.print("No package provided.\n", .{});
                 return;
             }
-            lib.uninstall(package_arg.?) catch |err| {
+            lib.uninstall(package_arg.?, config) catch |err| {
                 std.debug.print("Error uninstalling package: {any}\n", .{err});
                 return;
             };

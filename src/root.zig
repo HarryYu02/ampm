@@ -2,13 +2,13 @@
 
 const std = @import("std");
 
-const BIN = "bin";
-const CACHE = "cache";
-const REGISTRY = "registry";
-const SOURCE = "source";
 
 pub const Config = struct {
-    dir: []const u8,
+    root: []const u8,
+    bin: []const u8,
+    cache: []const u8,
+    registry: []const u8,
+    source: []const u8,
 };
 
 const Compression = enum {
@@ -20,6 +20,7 @@ const Compression = enum {
 const InstallEnv = enum {
     prefix,
     man,
+    std_cargo_args,
 };
 
 const InstallArgTag = enum {
@@ -37,7 +38,14 @@ pub const Package = struct {
     desc: []const u8,
     homepage: []const u8,
     url: []const u8,
+    sha256: []const u8,
     license: []const u8,
+    dependency: struct {
+        run: []const []const u8,
+        build: []const []const u8,
+        testing: []const []const u8,
+        optional: []const []const u8,
+    },
     install: []const []const InstallArg,
 };
 
@@ -205,12 +213,11 @@ fn fetchPackage(allocator: std.mem.Allocator, package: Package, file: *std.fs.Fi
 }
 
 /// Install a package by name
-pub fn install(package_name: []const u8) !void {
-    const cwd = std.fs.cwd();
-    var root = try cwd.openDir("./", .{});
+pub fn install(package_name: []const u8, config: Config) !void {
+    var root = try std.fs.openDirAbsolute(config.root, .{});
     defer root.close();
 
-    var registry = try root.openDir(REGISTRY, .{});
+    var registry = try std.fs.openDirAbsolute(config.registry, .{});
     defer registry.close();
     const allocator = std.heap.page_allocator;
 
@@ -232,7 +239,7 @@ pub fn install(package_name: []const u8) !void {
     );
     // zig fmt: on
 
-    var cache_dir = try root.openDir(CACHE, .{});
+    var cache_dir = try std.fs.openDirAbsolute(config.cache, .{});
     defer cache_dir.close();
 
     const last_slash_idx = std.mem.lastIndexOf(u8, package_zon.url, "/");
@@ -263,14 +270,12 @@ pub fn install(package_name: []const u8) !void {
 
     try extractPackage(cache_pack_dir, &compressed_file, compression);
 
-    var source_dir = try root.openDir(SOURCE, .{});
+    var source_dir = try std.fs.openDirAbsolute(config.source, .{});
     defer source_dir.close();
-    try source_dir.makeDir(package_zon.name);
-    var pack_dir = try source_dir.openDir(package_zon.name, .{});
+    var pack_dir = try source_dir.makeOpenPath(package_zon.name, .{});
     defer pack_dir.close();
     const semver = extractSemVer(compressed_file_name) orelse compressed_file_name;
-    try pack_dir.makeDir(semver);
-    var ver_dir = try pack_dir.openDir(semver, .{});
+    var ver_dir = try pack_dir.makeOpenPath(semver, .{});
     defer ver_dir.close();
 
     var install_env_map = std.hash_map.AutoHashMap(InstallEnv, []const u8).init(allocator);
@@ -281,15 +286,21 @@ pub fn install(package_name: []const u8) !void {
     try install_env_map.put(.prefix, prefix);
     const man = try std.mem.concat(allocator, u8, &[_][]const u8{ prefix, "/share/man" });
     try install_env_map.put(.man, man);
+    const std_cargo_args  = try std.mem.concat(allocator, u8, &[_][]const u8{
+        "--locked --root=",
+        prefix,
+        " --path=.",
+    });
+    try install_env_map.put(.std_cargo_args, std_cargo_args);
 
     try cache_pack_dir.setAsCwd();
     try installPackage(allocator, package_zon, install_env_map);
 
     try root.setAsCwd();
-    var source_bin_dir = try ver_dir.openDir(BIN, .{});
+    var source_bin_dir = try ver_dir.openDir("bin", .{});
     defer source_bin_dir.close();
 
-    var bin_dir = try root.openDir(BIN, .{});
+    var bin_dir = try std.fs.openDirAbsolute(config.bin, .{});
     defer bin_dir.close();
 
     try linkPackage(bin_dir, source_bin_dir, package_zon.name);
@@ -298,14 +309,14 @@ pub fn install(package_name: []const u8) !void {
 }
 
 /// Uninstall a package by name
-pub fn uninstall(package_name: []const u8) !void {
+pub fn uninstall(package_name: []const u8, config: Config) !void {
     const cwd = std.fs.cwd();
     var root = try cwd.openDir("./", .{});
     defer root.close();
 
-    var bin_dir = try root.openDir(BIN, .{});
+    var bin_dir = try std.fs.openDirAbsolute(config.bin, .{});
     defer bin_dir.close();
-    var source_dir = try root.openDir(SOURCE, .{});
+    var source_dir = try root.openDir(config.source, .{});
     defer source_dir.close();
 
     try bin_dir.deleteFile(package_name);
