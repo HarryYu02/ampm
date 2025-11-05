@@ -19,6 +19,7 @@ const Compression = enum {
 const InstallEnv = enum {
     prefix,
     man,
+    cpu_count,
     std_cargo_args,
     std_zig_args,
 };
@@ -213,11 +214,12 @@ fn fetchPackage(allocator: std.mem.Allocator, package: Package, file: *std.fs.Fi
 }
 
 fn populateInstallEnv(allocator: std.mem.Allocator, map: *std.hash_map.AutoHashMap(InstallEnv, []const u8), prefix: []const u8) !void {
+    try map.put(.prefix, prefix);
+
     const cpu_count = try std.Thread.getCpuCount();
     var buf: [4]u8 = undefined;
     const cpu_count_str = try std.fmt.bufPrint(&buf, "{d}", .{cpu_count});
-
-    try map.put(.prefix, prefix);
+    try map.put(.cpu_count, cpu_count_str);
 
     const man = try std.mem.concat(allocator, u8, &[_][]const u8{ prefix, "/share/man" });
     try map.put(.man, man);
@@ -365,4 +367,15 @@ pub fn uninstall(package_name: []const u8, config: Config) !void {
 
     try source_dir.deleteTree(package_name);
     std.debug.print("Package uninstalled successfully!\n", .{});
+}
+
+/// Uninstall a package by name
+pub fn list(config: Config) !void {
+    var source_dir = try std.fs.openDirAbsolute(config.source, .{});
+    defer source_dir.close();
+
+    var source_iter = source_dir.iterate();
+    while (try source_iter.next()) |package| {
+        std.debug.print("{s}\n", .{package.name});
+    }
 }

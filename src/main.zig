@@ -108,6 +108,12 @@ pub fn main() !void {
         .version => {
             std.debug.print("ampm v{s}\n", .{VERSION});
         },
+        .list => {
+            lib.list(config) catch |err| {
+                std.debug.print("Error listing packages: {any}\n", .{err});
+                return;
+            };
+        },
         else => {
             std.debug.print("Command not implemented.\n", .{});
             return;

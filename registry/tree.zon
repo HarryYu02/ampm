@@ -18,7 +18,7 @@
             .{ .env = .prefix },
             .{ .str = " MANDIR=" },
             .{ .env = .man },
-            .{ .str = " CC=/usr/bin/clang" },
+            .{ .str = " CC='clang'" },
             .{ .str = " CFLAGS='-Os -w -pipe -march=native -fomit-frame-pointer'" },
             .{ .str = " LDFLAGS=-Wl,-dead_strip_dylibs" },
             .{ .str = " OBJS='tree.o list.o hash.o color.o file.o filter.o info.o unix.o xml.o json.o html.o strverscmp.o'" },
