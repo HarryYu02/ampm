@@ -2,7 +2,6 @@
 
 const std = @import("std");
 
-
 pub const Config = struct {
     root: []const u8,
     bin: []const u8,
@@ -21,6 +20,7 @@ const InstallEnv = enum {
     prefix,
     man,
     std_cargo_args,
+    std_zig_args,
 };
 
 const InstallArgTag = enum {
@@ -212,6 +212,36 @@ fn fetchPackage(allocator: std.mem.Allocator, package: Package, file: *std.fs.Fi
     }
 }
 
+fn populateInstallEnv(allocator: std.mem.Allocator, map: *std.hash_map.AutoHashMap(InstallEnv, []const u8), prefix: []const u8) !void {
+    const cpu_count = try std.Thread.getCpuCount();
+    var buf: [4]u8 = undefined;
+    const cpu_count_str = try std.fmt.bufPrint(&buf, "{d}", .{cpu_count});
+
+    try map.put(.prefix, prefix);
+
+    const man = try std.mem.concat(allocator, u8, &[_][]const u8{ prefix, "/share/man" });
+    try map.put(.man, man);
+
+    const std_cargo_args = try std.mem.concat(allocator, u8, &[_][]const u8{
+        "--jobs ",
+        cpu_count_str,
+        " --locked --root=",
+        prefix,
+        " --path=.",
+    });
+    try map.put(.std_cargo_args, std_cargo_args);
+
+    const std_zig_args = try std.mem.concat(allocator, u8, &[_][]const u8{
+      "--prefix ",
+      prefix,
+      " --release=fast",
+      " -Doptimize=ReleaseFast",
+      " --summary",
+      " all"
+    });
+    try map.put(.std_zig_args, std_zig_args);
+}
+
 /// Install a package by name
 pub fn install(package_name: []const u8, config: Config) !void {
     var root = try std.fs.openDirAbsolute(config.root, .{});
@@ -281,17 +311,9 @@ pub fn install(package_name: []const u8, config: Config) !void {
     var install_env_map = std.hash_map.AutoHashMap(InstallEnv, []const u8).init(allocator);
     defer install_env_map.deinit();
 
-    var prefix_str: [1024]u8 = undefined;
-    const prefix = try ver_dir.realpath("./", &prefix_str);
-    try install_env_map.put(.prefix, prefix);
-    const man = try std.mem.concat(allocator, u8, &[_][]const u8{ prefix, "/share/man" });
-    try install_env_map.put(.man, man);
-    const std_cargo_args  = try std.mem.concat(allocator, u8, &[_][]const u8{
-        "--locked --root=",
-        prefix,
-        " --path=.",
-    });
-    try install_env_map.put(.std_cargo_args, std_cargo_args);
+    var prefix_buf: [1024]u8 = undefined;
+    const prefix = try ver_dir.realpath("./", &prefix_buf);
+    try populateInstallEnv(allocator, &install_env_map, prefix);
 
     try cache_pack_dir.setAsCwd();
     try installPackage(allocator, package_zon, install_env_map);

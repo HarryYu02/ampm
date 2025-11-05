@@ -19,9 +19,8 @@
     },
     .install = .{
         .{
-            .{ .str = "cargo install --locked --root=" },
-            .{ .env = .prefix },
-            .{ .str = " --path=." },
+            .{ .str = "cargo install " },
+            .{ .env = .std_cargo_args },
         },
     },
 }
