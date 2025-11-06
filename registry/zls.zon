@@ -3,6 +3,11 @@
     .desc = "Language Server for Zig",
     .homepage = "https://zigtools.org/zls/",
     .url = "https://github.com/zigtools/zls/archive/refs/tags/0.15.0.tar.gz",
+    .git = .{
+        .url = "",
+        .tag = "",
+        .revision = "",
+    },
     .sha256 = "337d478ca90bab965070ed139408909f1968ad709afb61594b6368dbacc0b631",
     .license = "MIT",
     .dependency = .{

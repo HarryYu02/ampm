@@ -39,6 +39,11 @@ pub const Package = struct {
     desc: []const u8,
     homepage: []const u8,
     url: []const u8,
+    git: struct {
+        url: []const u8,
+        tag: []const u8,
+        revision: []const u8,
+    },
     sha256: []const u8,
     license: []const u8,
     dependency: struct {
@@ -94,7 +99,9 @@ fn installPackage(
     std.debug.print("Installing package...\n", .{});
     for (package.install) |raw_command| {
         const command_str = try buildInstallCommand(allocator, raw_command, install_env_map);
+        // std.debug.print("command_str: {s}\n", .{command_str});
         const script = &[_][]const u8{ "sh", "-c", command_str };
+        // _ = script;
         var child_process = std.process.Child.init(script, allocator);
         try child_process.spawn();
         const status = try child_process.wait();
@@ -193,6 +200,15 @@ fn extractPackage(
     }
 }
 
+fn gitClonePackage(allocator: std.mem.Allocator, package: Package) !void {
+    std.debug.print("Git clone package from: {s}\n", .{package.git.url});
+    const script = &[_][]const u8{ "git", "clone", package.git.url };
+    var child_process = std.process.Child.init(script, allocator);
+    try child_process.spawn();
+    const status = try child_process.wait();
+    _ = status;
+}
+
 fn fetchPackage(allocator: std.mem.Allocator, package: Package, file: *std.fs.File) !void {
     std.debug.print("Fetching package from: {s}\n", .{package.url});
     var client = std.http.Client{
@@ -274,39 +290,65 @@ pub fn install(package_name: []const u8, config: Config) !void {
     var cache_dir = try std.fs.openDirAbsolute(config.cache, .{});
     defer cache_dir.close();
 
-    const last_slash_idx = std.mem.lastIndexOf(u8, package_zon.url, "/");
-    const compressed_file_name = package_zon.url[(last_slash_idx orelse 0) + 1 ..];
-    var compressed_file = try cache_dir.createFile(compressed_file_name, .{
-        .read = true,
-    });
-    defer {
-        compressed_file.close();
-        cache_dir.deleteFile(compressed_file_name) catch unreachable;
-    }
-
-    try fetchPackage(allocator, package_zon, &compressed_file);
-
-    var compression: Compression = undefined;
-    if (std.mem.endsWith(u8, compressed_file_name, ".tar.gz")) {
-        compression = .tgz;
+    var url: []const u8 = undefined;
+    if (package_zon.url.len > 0) {
+        url = package_zon.url;
+    } else if (package_zon.git.url.len > 0) {
+        url = package_zon.git.url;
     } else {
-        return error.PackageCompressionNotSupported;
+        return error.NoPackageUrl;
     }
 
-    try cache_dir.makeDir(package_zon.name);
-    var cache_pack_dir = try cache_dir.openDir(package_zon.name, .{});
+    const last_slash_idx = std.mem.lastIndexOf(u8, url, "/");
+    const fetch_name = url[(last_slash_idx orelse 0) + 1 ..];
+    var semver = extractSemVer(fetch_name) orelse fetch_name;
+
+    var cache_pack_dir = try cache_dir.makeOpenPath(package_zon.name, .{});
     defer {
         cache_pack_dir.close();
         cache_dir.deleteTree(package_zon.name) catch unreachable;
     }
 
-    try extractPackage(cache_pack_dir, &compressed_file, compression);
+    if (std.mem.endsWith(u8, fetch_name, ".git")) {
+        semver = package_zon.git.tag;
+        try cache_pack_dir.setAsCwd();
+        try gitClonePackage(allocator, package_zon);
+        var cache_pack_dir_iter = cache_pack_dir.iterate();
+
+        const git_dir_entry = try cache_pack_dir_iter.next();
+        if (git_dir_entry != null) {
+            var git_dir = try cache_pack_dir.openDir(git_dir_entry.?.name, .{});
+            defer git_dir.close();
+            try git_dir.setAsCwd();
+        } else {
+            return error.GitCloneFailed;
+        }
+    } else {
+        var compressed_file = try cache_dir.createFile(fetch_name, .{
+            .read = true,
+        });
+        defer {
+            compressed_file.close();
+            cache_dir.deleteFile(fetch_name) catch unreachable;
+        }
+
+        try fetchPackage(allocator, package_zon, &compressed_file);
+
+        var compression: Compression = undefined;
+        if (std.mem.endsWith(u8, fetch_name, ".tar.gz")) {
+            compression = .tgz;
+        } else {
+            return error.PackageCompressionNotSupported;
+        }
+
+        try extractPackage(cache_pack_dir, &compressed_file, compression);
+        try cache_pack_dir.setAsCwd();
+    }
 
     var source_dir = try std.fs.openDirAbsolute(config.source, .{});
     defer source_dir.close();
     var pack_dir = try source_dir.makeOpenPath(package_zon.name, .{});
     defer pack_dir.close();
-    const semver = extractSemVer(compressed_file_name) orelse compressed_file_name;
     var ver_dir = try pack_dir.makeOpenPath(semver, .{});
     defer ver_dir.close();
 
@@ -317,7 +359,6 @@ pub fn install(package_name: []const u8, config: Config) !void {
     const prefix = try ver_dir.realpath("./", &prefix_buf);
     try populateInstallEnv(allocator, &install_env_map, prefix);
 
-    try cache_pack_dir.setAsCwd();
     try installPackage(allocator, package_zon, install_env_map);
 
     try root.setAsCwd();
@@ -358,18 +399,14 @@ pub fn uninstall(package_name: []const u8, config: Config) !void {
     defer source_bin_dir.close();
     var source_bin_iter = source_bin_dir.iterate();
 
-    while (source_bin_iter.next()) |binary| {
-        if (binary == null) break;
-        try bin_dir.deleteFile(binary.?.name);
-    } else |err| {
-        return err;
+    while (try source_bin_iter.next()) |binary| {
+        try bin_dir.deleteFile(binary.name);
     }
-
     try source_dir.deleteTree(package_name);
     std.debug.print("Package uninstalled successfully!\n", .{});
 }
 
-/// Uninstall a package by name
+/// List all managed packages
 pub fn list(config: Config) !void {
     var source_dir = try std.fs.openDirAbsolute(config.source, .{});
     defer source_dir.close();

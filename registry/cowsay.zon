@@ -3,6 +3,11 @@
     .desc = "Apjanke's fork of the classic cowsay project",
     .homepage = "https://cowsay.diamonds",
     .url = "https://github.com/cowsay-org/cowsay/archive/refs/tags/v3.8.4.tar.gz",
+    .git = .{
+        .url = "",
+        .tag = "",
+        .revision = "",
+    },
     .sha256 = "",
     .license = "GPL-3.0-only",
     .dependency = .{

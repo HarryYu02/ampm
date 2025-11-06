@@ -1,0 +1,64 @@
+.{
+    .name = "lua-language-server",
+    .desc = "Language Server for the Lua language",
+    .homepage = "https://luals.github.io/",
+    .url = "",
+    .git = .{
+        .url = "https://github.com/LuaLS/lua-language-server.git",
+        .tag = "3.15.0",
+        .revision = "32fec3cc99af8b9a1e45c2455a8c3bd0d3e38f66",
+    },
+    .sha256 = "",
+    .license = "MIT",
+    .dependency = .{
+        .run = .{},
+        .build = .{
+            "rg",
+            "ninja",
+        },
+        .testing = .{},
+        .optional = .{},
+    },
+    .install = .{
+        .{
+            .{ .str = "git submodule update --init --recursive" },
+        },
+        // Workaround until upstream can update bee.lua submodule
+        .{
+            .{ .str = "sed -i '' 's/\\(#include \"format.h\"\\)/\\1\\\\0\\n#include <algorithm>/' 3rd/bee.lua/3rd/fmt/fmt/color.h" },
+        },
+        .{
+            .{ .str = "sed -i '' 's/\\(#include \"format.h\"\\)/\\1\\\\0\\n#include <algorithm>/' 3rd/luamake/bee.lua/3rd/fmt/fmt/color.h" },
+        },
+        // Disable all tests by build script
+        .{
+            .{ .str = "sed -i '' 's/lt.run()/true/' $(rg -l 'lt.run()')" },
+        },
+        .{
+            .{ .str = "./make.sh" },
+        },
+        .{
+            .{ .str = "cp -a ./* " },
+            .{ .env = .prefix },
+        },
+        .{
+            .{ .str = "mv " },
+            .{ .env = .prefix },
+            .{ .str = "/bin/lua-language-server " },
+            .{ .env = .prefix },
+            .{ .str = "/bin/lua_ls" },
+        },
+        .{
+            .{ .str = "echo '#!/bin/bash\\nexec -a lua-language-server " },
+            .{ .env = .prefix },
+            .{ .str = "/bin/lua_ls\\n' >> " },
+            .{ .env = .prefix },
+            .{ .str = "/bin/lua-language-server" },
+        },
+        .{
+            .{ .str = "chmod +x " },
+            .{ .env = .prefix },
+            .{ .str = "/bin/lua-language-server" },
+        },
+    },
+}

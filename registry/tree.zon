@@ -3,6 +3,11 @@
     .desc = "Display directories as trees (with optional color/HTML output)",
     .homepage = "https://oldmanprogrammer.net/source.php?dir=projects/tree",
     .url = "https://github.com/Old-Man-Programmer/tree/archive/refs/tags/2.2.1.tar.gz",
+    .git = .{
+        .url = "",
+        .tag = "",
+        .revision = "",
+    },
     .sha256 = "",
     .license = "GPL-2.0-or-later",
     .dependency = .{
