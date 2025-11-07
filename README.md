@@ -46,13 +46,11 @@ ampm [command] [package]
 ## Todo
 
 - cli: read config file
-- ampm install: link man pages
 - ampm install: generate completion
 - ampm install: checksum
 - ampm install: resolve dependencies
 - ampm search
 - ampm info
-- ampm list
 - ampm exec
 - ampm cleanup
 - ampm update

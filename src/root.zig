@@ -5,6 +5,7 @@ const std = @import("std");
 pub const Config = struct {
     root: []const u8,
     bin: []const u8,
+    man: []const u8,
     cache: []const u8,
     registry: []const u8,
     source: []const u8,
@@ -18,6 +19,7 @@ const Compression = enum {
 
 const InstallEnv = enum {
     prefix,
+    bin,
     man,
     cpu_count,
     std_cargo_args,
@@ -55,11 +57,50 @@ pub const Package = struct {
     install: []const []const InstallArg,
 };
 
-fn linkPackage(bin_dir: std.fs.Dir, source_dir: std.fs.Dir, name: []const u8) !void {
-    std.debug.print("Linking {s}...\n", .{name});
-    var path_buf: [1024]u8 = undefined;
-    const link_path = try source_dir.realpath(name, &path_buf);
-    try bin_dir.symLink(link_path, name, .{});
+fn linkPackage(allocator: std.mem.Allocator, source_dir: std.fs.Dir, config: Config) !void {
+    var bin_dir = try std.fs.openDirAbsolute(config.bin, .{});
+    defer bin_dir.close();
+
+    var source_bin_dir = try source_dir.openDir("bin", .{});
+    defer source_bin_dir.close();
+    var source_bin_iter = source_bin_dir.iterate();
+
+    while (try source_bin_iter.next()) |binary| {
+        const name = binary.name;
+        if (!std.mem.containsAtLeast(u8, name, 1, ".")) {
+            std.debug.print("Linking {s}...\n", .{name});
+            var path_buf: [1024]u8 = undefined;
+            const link_path = try source_bin_dir.realpath(name, &path_buf);
+            try bin_dir.symLink(link_path, name, .{});
+        }
+    }
+
+    for (1..10) |section| {
+        const section_char: u8 = @as(u8, @intCast(section)) + '0';
+        const source_man_dir_name = "man" ++ [1]u8{section_char};
+        var source_man_dir = source_dir.openDir("share/man/" ++ source_man_dir_name, .{}) catch |err| {
+            switch (err) {
+                error.FileNotFound => {
+                    continue;
+                },
+                else => {
+                    return err;
+                }
+            }
+        };
+        defer source_man_dir.close();
+        var source_man_iter = source_man_dir.iterate();
+        while (try source_man_iter.next()) |manual| {
+            // tree.1
+            const man_dir_name = try std.mem.concat(allocator, u8, &[_][]const u8{config.man, "/", source_man_dir_name});
+            var man_dir = try std.fs.openDirAbsolute(man_dir_name, .{});
+            defer man_dir.close();
+
+            var path_buf: [1024]u8 = undefined;
+            const link_path = try source_man_dir.realpath(manual.name, &path_buf);
+            try man_dir.symLink(link_path, manual.name, .{});
+        }
+    }
 }
 
 // zig fmt: off
@@ -229,13 +270,15 @@ fn fetchPackage(allocator: std.mem.Allocator, package: Package, file: *std.fs.Fi
     }
 }
 
-fn populateInstallEnv(allocator: std.mem.Allocator, map: *std.hash_map.AutoHashMap(InstallEnv, []const u8), prefix: []const u8) !void {
+fn populateInstallEnv(allocator: std.mem.Allocator, map: *std.hash_map.AutoHashMap(InstallEnv, []const u8), prefix: []const u8, config: Config) !void {
     try map.put(.prefix, prefix);
 
     const cpu_count = try std.Thread.getCpuCount();
     var buf: [4]u8 = undefined;
     const cpu_count_str = try std.fmt.bufPrint(&buf, "{d}", .{cpu_count});
     try map.put(.cpu_count, cpu_count_str);
+
+    try map.put(.bin, config.bin);
 
     const man = try std.mem.concat(allocator, u8, &[_][]const u8{ prefix, "/share/man" });
     try map.put(.man, man);
@@ -357,25 +400,12 @@ pub fn install(package_name: []const u8, config: Config) !void {
 
     var prefix_buf: [1024]u8 = undefined;
     const prefix = try ver_dir.realpath("./", &prefix_buf);
-    try populateInstallEnv(allocator, &install_env_map, prefix);
+    try populateInstallEnv(allocator, &install_env_map, prefix, config);
 
     try installPackage(allocator, package_zon, install_env_map);
 
     try root.setAsCwd();
-    var source_bin_dir = try ver_dir.openDir("bin", .{});
-    defer source_bin_dir.close();
-
-    var bin_dir = try std.fs.openDirAbsolute(config.bin, .{});
-    defer bin_dir.close();
-
-    var source_bin_iter = source_bin_dir.iterate();
-    while (source_bin_iter.next()) |binary| {
-        if (binary == null) break;
-        try linkPackage(bin_dir, source_bin_dir, binary.?.name);
-    } else |err| {
-        return err;
-    }
-
+    try linkPackage(allocator, ver_dir, config);
     std.debug.print("Package installed successfully!\n", .{});
 }
 
@@ -400,7 +430,9 @@ pub fn uninstall(package_name: []const u8, config: Config) !void {
     var source_bin_iter = source_bin_dir.iterate();
 
     while (try source_bin_iter.next()) |binary| {
-        try bin_dir.deleteFile(binary.name);
+        if (!std.mem.containsAtLeast(u8, binary.name, 1, ".")) {
+            try bin_dir.deleteFile(binary.name);
+        }
     }
     try source_dir.deleteTree(package_name);
     std.debug.print("Package uninstalled successfully!\n", .{});

@@ -13,7 +13,6 @@
     .dependency = .{
         .run = .{},
         .build = .{
-            "rg",
             "ninja",
         },
         .testing = .{},
@@ -32,7 +31,7 @@
         },
         // Disable all tests by build script
         .{
-            .{ .str = "sed -i '' 's/lt.run()/true/' $(rg -l 'lt.run()')" },
+            .{ .str = "sed -i '' 's/lt.run()/true/' $(grep -rl 'lt.run()')" },
         },
         .{
             .{ .str = "./make.sh" },
@@ -46,12 +45,12 @@
             .{ .env = .prefix },
             .{ .str = "/bin/lua-language-server " },
             .{ .env = .prefix },
-            .{ .str = "/bin/lua_ls" },
+            .{ .str = "/bin/lua-language-server.o" },
         },
         .{
             .{ .str = "echo '#!/bin/bash\\nexec -a lua-language-server " },
             .{ .env = .prefix },
-            .{ .str = "/bin/lua_ls\\n' >> " },
+            .{ .str = "/bin/lua-language-server.o\\n' >> " },
             .{ .env = .prefix },
             .{ .str = "/bin/lua-language-server" },
         },

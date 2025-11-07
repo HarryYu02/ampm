@@ -46,6 +46,7 @@ pub fn main() !void {
     var config: lib.Config = .{
         .root = undefined,
         .bin = undefined,
+        .man = undefined,
         .cache = undefined,
         .registry = undefined,
         .source = undefined,
@@ -61,6 +62,7 @@ pub fn main() !void {
                     const root = "/usr/local/ampm";
                     config.root = root;
                     config.bin = "/usr/local/bin";
+                    config.man = "/usr/local/share/man";
                     config.cache = root ++ "/cache";
                     config.registry = root ++ "/registry";
                     config.source = root ++ "/source";
