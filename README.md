@@ -46,6 +46,7 @@ ampm [command] [package]
 ## Todo
 
 - cli: read config file
+- ampm uninstall: delete man pages
 - ampm install: generate completion
 - ampm install: checksum
 - ampm install: resolve dependencies

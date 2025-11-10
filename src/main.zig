@@ -16,6 +16,7 @@ const Command = enum {
     install,
     update,
     uninstall,
+    reinstall,
 };
 
 fn parseCommand(command_arg: ?[]const u8) !Command {
@@ -26,6 +27,8 @@ fn parseCommand(command_arg: ?[]const u8) !Command {
         return Command.install;
     } else if (mem.eql(u8, command_arg.?, "uninstall")) {
         return Command.uninstall;
+    } else if (mem.eql(u8, command_arg.?, "reinstall")) {
+        return Command.reinstall;
     } else if (mem.eql(u8, command_arg.?, "search")) {
         return Command.search;
     } else if (mem.eql(u8, command_arg.?, "info")) {
@@ -91,6 +94,21 @@ pub fn main() !void {
                 std.debug.print("No package provided.\n", .{});
                 return;
             }
+            lib.install(package_arg.?, config) catch |err| {
+                std.debug.print("Error installing package: {any}\n", .{err});
+                return;
+            };
+        },
+        .reinstall => {
+            const package_arg = args_iter.next();
+            if (package_arg == null) {
+                std.debug.print("No package provided.\n", .{});
+                return;
+            }
+            lib.uninstall(package_arg.?, config) catch |err| {
+                std.debug.print("Error uninstalling package: {any}\n", .{err});
+                return;
+            };
             lib.install(package_arg.?, config) catch |err| {
                 std.debug.print("Error installing package: {any}\n", .{err});
                 return;

@@ -91,7 +91,6 @@ fn linkPackage(allocator: std.mem.Allocator, source_dir: std.fs.Dir, config: Con
         defer source_man_dir.close();
         var source_man_iter = source_man_dir.iterate();
         while (try source_man_iter.next()) |manual| {
-            // tree.1
             const man_dir_name = try std.mem.concat(allocator, u8, &[_][]const u8{config.man, "/", source_man_dir_name});
             var man_dir = try std.fs.openDirAbsolute(man_dir_name, .{});
             defer man_dir.close();
@@ -411,6 +410,8 @@ pub fn install(package_name: []const u8, config: Config) !void {
 
 /// Uninstall a package by name
 pub fn uninstall(package_name: []const u8, config: Config) !void {
+    const allocator = std.heap.page_allocator;
+
     var bin_dir = try std.fs.openDirAbsolute(config.bin, .{});
     defer bin_dir.close();
 
@@ -434,6 +435,30 @@ pub fn uninstall(package_name: []const u8, config: Config) !void {
             try bin_dir.deleteFile(binary.name);
         }
     }
+
+    for (1..10) |section| {
+        const section_char: u8 = @as(u8, @intCast(section)) + '0';
+        const source_man_dir_name = "man" ++ [1]u8{section_char};
+        var source_man_dir = ver_dir.openDir("share/man/" ++ source_man_dir_name, .{}) catch |err| {
+            switch (err) {
+                error.FileNotFound => {
+                    continue;
+                },
+                else => {
+                    return err;
+                }
+            }
+        };
+        defer source_man_dir.close();
+        var source_man_iter = source_man_dir.iterate();
+        while (try source_man_iter.next()) |manual| {
+            const man_dir_name = try std.mem.concat(allocator, u8, &[_][]const u8{config.man, "/", source_man_dir_name});
+            var man_dir = try std.fs.openDirAbsolute(man_dir_name, .{});
+            defer man_dir.close();
+            try man_dir.deleteFile(manual.name);
+        }
+    }
+
     try source_dir.deleteTree(package_name);
     std.debug.print("Package uninstalled successfully!\n", .{});
 }
