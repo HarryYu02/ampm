@@ -1,0 +1,53 @@
+.{
+    .name = "typescript-language-server",
+    .desc = "Language Server Protocol implementation for TypeScript wrapping tsserver",
+    .homepage = "https://github.com/typescript-language-server/typescript-language-server",
+    .url = "https://github.com/typescript-language-server/typescript-language-server/archive/refs/tags/v5.1.1.tar.gz",
+    .git = .{
+        .url = "",
+        .tag = "",
+        .revision = "",
+    },
+    .sha256 = "",
+    .license = "MIT,Apache-2.0",
+    .dependency = .{
+        .run = .{
+            "node",
+        },
+        .build = .{
+            "yarn",
+        },
+        .testing = .{},
+        .optional = .{},
+    },
+    .install = .{
+        .{
+            .{ .str = "yarn install" },
+        },
+        .{
+            .{ .str = "yarn build" },
+        },
+        .{
+            .{ .str = "chmod +x ./lib/cli.mjs" },
+        },
+        .{
+            .{ .str = "mkdir bin" },
+        },
+        .{
+            .{ .str = "cp -a ./* " },
+            .{ .env = .prefix },
+        },
+        .{
+            .{ .str = "ln -s " },
+            .{ .env = .prefix },
+            .{ .str = "/lib/cli.mjs " },
+            .{ .env = .prefix },
+            .{ .str = "/bin/typescript-language-server" },
+        },
+        .{
+            .{ .str = "chmod +x " },
+            .{ .env = .prefix },
+            .{ .str = "/lib/cli.mjs" },
+        },
+    },
+}
