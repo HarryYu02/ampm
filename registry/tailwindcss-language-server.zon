@@ -1,0 +1,38 @@
+.{
+    .name = "tailwindcss-language-server",
+    .desc = "LSP for TailwindCSS",
+    .homepage = "https://github.com/tailwindlabs/tailwindcss-intellisense/tree/HEAD/packages/tailwindcss-language-server",
+    .url = "https://github.com/tailwindlabs/tailwindcss-intellisense/archive/refs/tags/v0.14.29.tar.gz",
+    .git = .{
+        .url = "",
+        .tag = "",
+        .revision = "",
+    },
+    .sha256 = "",
+    .license = "MIT",
+    .dependency = .{
+        .run = .{
+            "node",
+        },
+        .build = .{
+            "pnpm",
+        },
+        .testing = .{},
+        .optional = .{},
+    },
+    .install = .{
+        .{
+            .{ .str = "echo 'managePackageManagerVersions: false' >> pnpm-workspace.yaml" },
+        },
+        .{
+            .{ .str = "cd ./packages/tailwindcss-language-server && pnpm install" },
+        },
+        .{
+            .{ .str = "cd ./packages/tailwindcss-language-server && pnpm run build" },
+        },
+        .{
+            .{ .str = "cd ./packages/tailwindcss-language-server && cp -a ./* " },
+            .{ .env = .prefix },
+        },
+    },
+}

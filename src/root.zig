@@ -85,13 +85,13 @@ fn linkPackage(allocator: std.mem.Allocator, source_dir: std.fs.Dir, config: Con
                 },
                 else => {
                     return err;
-                }
+                },
             }
         };
         defer source_man_dir.close();
         var source_man_iter = source_man_dir.iterate();
         while (try source_man_iter.next()) |manual| {
-            const man_dir_name = try std.mem.concat(allocator, u8, &[_][]const u8{config.man, "/", source_man_dir_name});
+            const man_dir_name = try std.mem.concat(allocator, u8, &[_][]const u8{ config.man, "/", source_man_dir_name });
             var man_dir = try std.fs.openDirAbsolute(man_dir_name, .{});
             defer man_dir.close();
 
@@ -242,7 +242,7 @@ fn extractPackage(
 
 fn gitClonePackage(allocator: std.mem.Allocator, package: Package) !void {
     std.debug.print("Git clone package from: {s}\n", .{package.git.url});
-    const script = &[_][]const u8{ "git", "clone", package.git.url };
+    const script = &[_][]const u8{ "git", "clone", "--depth", "1", package.git.url };
     var child_process = std.process.Child.init(script, allocator);
     try child_process.spawn();
     const status = try child_process.wait();
@@ -291,14 +291,7 @@ fn populateInstallEnv(allocator: std.mem.Allocator, map: *std.hash_map.AutoHashM
     });
     try map.put(.std_cargo_args, std_cargo_args);
 
-    const std_zig_args = try std.mem.concat(allocator, u8, &[_][]const u8{
-      "--prefix ",
-      prefix,
-      " --release=fast",
-      " -Doptimize=ReleaseFast",
-      " --summary",
-      " all"
-    });
+    const std_zig_args = try std.mem.concat(allocator, u8, &[_][]const u8{ "--prefix ", prefix, " --release=fast", " -Doptimize=ReleaseFast", " --summary", " all" });
     try map.put(.std_zig_args, std_zig_args);
 }
 
@@ -446,13 +439,13 @@ pub fn uninstall(package_name: []const u8, config: Config) !void {
                 },
                 else => {
                     return err;
-                }
+                },
             }
         };
         defer source_man_dir.close();
         var source_man_iter = source_man_dir.iterate();
         while (try source_man_iter.next()) |manual| {
-            const man_dir_name = try std.mem.concat(allocator, u8, &[_][]const u8{config.man, "/", source_man_dir_name});
+            const man_dir_name = try std.mem.concat(allocator, u8, &[_][]const u8{ config.man, "/", source_man_dir_name });
             var man_dir = try std.fs.openDirAbsolute(man_dir_name, .{});
             defer man_dir.close();
             try man_dir.deleteFile(manual.name);
